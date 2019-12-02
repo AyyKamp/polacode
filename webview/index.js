@@ -4,6 +4,7 @@
   let target = 'container'
   let transparentBackground = false
   let backgroundColor = '#f2f2f2'
+  let clipboard = true
 
   vscode.postMessage({
     type: 'getAndUpdateCacheAndSettings'
@@ -45,6 +46,16 @@
       type: 'shoot',
       data: {
         serializedBlob
+      }
+    })
+  }
+
+  function shootToClipboard(pixels, dimensions) {
+    vscode.postMessage({
+      type: 'shootToClipboard',
+      data: {
+        pixels,
+        dimensions
       }
     })
   }
@@ -129,7 +140,7 @@
 
   obturateur.addEventListener('click', () => {
     if (target === 'container') {
-      shootAll() 
+      shootAll()
     } else {
       shootSnippet()
     }
@@ -178,14 +189,23 @@
     // Hide resizer before capture
     snippetNode.style.resize = 'none'
     snippetContainerNode.style.resize = 'none'
-
-    domtoimage.toBlob(snippetContainerNode, config).then(blob => {
-      snippetNode.style.resize = ''
-      snippetContainerNode.style.resize = ''
-      serializeBlob(blob, serializedBlob => {
-        shoot(serializedBlob)
+    if (!clipboard) {
+      domtoimage.toBlob(snippetContainerNode, config).then(blob => {
+        snippetNode.style.resize = ''
+        snippetContainerNode.style.resize = ''
+        serializeBlob(blob, serializedBlob => {
+          shoot(serializedBlob)
+        })
       })
-    })
+    } else {      
+      domtoimage.toPixelData(snippetContainerNode, config).then(pixels => {
+        snippetNode.style.resize = ''
+        snippetContainerNode.style.resize = ''
+        const nodeWidth = snippetContainerNode.scrollWidth,
+              nodeHeight = snippetContainerNode.scrollHeight
+        shootToClipboard(pixels, { width: nodeWidth, height: nodeHeight })
+      })
+    }
   }
 
   let isInAnimation = false

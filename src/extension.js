@@ -3,9 +3,31 @@ const fs = require('fs')
 const path = require('path')
 const { homedir } = require('os')
 
+const clip = require('@ayykamp/napi-clip')
+
 const writeSerializedBlobToFile = (serializeBlob, fileName) => {
   const bytes = new Uint8Array(serializeBlob.split(','))
   fs.writeFileSync(fileName, Buffer.from(bytes))
+}
+
+// write every 4 elements from uint8 into one element in uint32
+// e.g. [0xff, 0x7f, 0xff, 0x00] => [0xff7fff00]
+const copyUint8ArrayToUint32Array = uint8 => {
+  if (!uint8)
+		throw new TypeError("Missing argument")
+  
+	let byte1, byte2, byte3, byte4, bits32,
+		uint32 = new Uint32Array(uint8.byteLength / 4);
+  
+	for (let i8 = 0, i32 = 0; i8 <= uint8.length; i32++) {
+		byte1 = uint8[i8++]
+		byte2 = uint8[i8++]
+		byte3 = uint8[i8++]
+		byte4 = uint8[i8++]
+		bits32 = 0 | (byte1 << 24) | (byte2 << 16) | (byte3 << 8) | byte4
+		uint32[i32] = bits32
+	}
+	return uint32
 }
 
 const P_TITLE = 'Polacode 📸'
@@ -62,6 +84,10 @@ function activate(context) {
     syncSettings()
   })
 
+  vscode.commands.registerCommand('polacode.try', () => {
+    
+  })
+
   vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('polacode') || e.affectsConfiguration('editor')) {
       syncSettings()
@@ -85,6 +111,20 @@ function activate(context) {
                 lastUsedImageUri = uri
               }
             })
+          break
+        case 'shootToClipboard':
+          const uint32Pixels = copyUint8ArrayToUint32Array(data.pixels)
+          try {
+            clip.setImage({
+              data: Buffer.from(Uint32Array.from(uint32Pixels).buffer),
+              spec: {
+                width: data.dimensions.width,
+                height: data.dimensions.height,
+              }
+            })
+          } catch (error) {
+            console.log(error)
+          }
           break
         case 'getAndUpdateCacheAndSettings':
           panel.webview.postMessage({
